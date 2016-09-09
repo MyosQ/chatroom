@@ -3,13 +3,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <pthread.h>
 
 void err_sys(char* mes);
+void *receivemsg(void* sockfd);
 
 int main(){
+	pthread_t thread1;
 	int sockfd_listen, sockfd_client;
-	char recvbuf[10];
 	struct sockaddr_in addrport, echoClntAddr;
+	socklen_t clntLen = sizeof(echoClntAddr);
+
 	addrport.sin_family = AF_INET;
 	addrport.sin_port = htons(5100);
 	addrport.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -23,20 +27,16 @@ int main(){
 	if(listen(sockfd_listen, 10) < 0)
 		err_sys("Socket listen error");
 
+	printf("Listening...\n");
+	if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&echoClntAddr, &clntLen)) < 0)
+		err_sys("Socket accept error");
 
-	/* Repeat: */
-//	while(1){
-		socklen_t clntLen = sizeof(echoClntAddr);
-		if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&echoClntAddr, &clntLen)) < 0)
-			err_sys("Socket accept error");
+	/* Accepted, new thread for recieving msg */
+	if (pthread_create(&thread1, NULL, receivemsg, (void*)sockfd_client) != 0)
+		err_sys("Pthread_Create error");
 
-		/* Accepted */
-		if(recv(sockfd_client, recvbuf, 10, 0) < 0)
-			err_sys("Socket recieve error");
 
-		fputs(recvbuf, stdout);
-		putchar('\n');
-//	}
+	sleep(60);
 
 	if(close(sockfd_listen) < 0)
 		err_sys("Socket close error");
@@ -47,4 +47,18 @@ int main(){
 void err_sys(char* mes){
 	perror(mes);
 	exit(EXIT_FAILURE);
+}
+
+void *receivemsg(void* sockfd){
+	int sockfd_client = (int)sockfd;
+	char recvbuf[10];
+
+	printf("Receiving...\n");
+	while(1){
+		if(recv(sockfd_client, recvbuf, 10, 0) < 0)
+			err_sys("Socket recieve error");
+
+		fputs(recvbuf, stdout);
+		putchar('\n');
+	}
 }
