@@ -13,7 +13,7 @@ void err_sys(char* mes){
 }
 
 int main(){
-	int sockfd_client;
+	int sockfd_client, bufLen;
 	struct sockaddr_in echoServAddr;
 	echoServAddr.sin_family = AF_INET;
 	echoServAddr.sin_addr.s_addr = inet_addr("192.168.1.15");
@@ -30,8 +30,12 @@ int main(){
 	/* Send messages */
 	while(fgets(sendbuf, 128, stdin) != NULL){
 
-		if(send(sockfd_client, sendbuf, 128, 0) != 128)
-			err_sys("Socket send error, different number of bytes than expected");
+		if(!strncmp(sendbuf, "quit", 4))
+			break;
+
+		bufLen = strlen(sendbuf);
+		if(send(sockfd_client, sendbuf, bufLen, 0) != bufLen)
+			err_sys("Socket send error, sent different number of bytes than expected");
 
 	}
 

@@ -55,10 +55,9 @@ void *receivemsg(void* sockfd){
 
 	printf("Receiving...\n");
 	while(1){
-		if(recv(sockfd_client, recvbuf, 10, 0) < 0)
+		if(recv(sockfd_client, recvbuf, 10, 0) <= 0)
 			err_sys("Socket recieve error");
 
 		fputs(recvbuf, stdout);
-		putchar('\n');
 	}
 }
