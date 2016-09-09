@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 void err_sys(char* mes){
 	perror(mes);
@@ -31,4 +34,6 @@ int main(){
 
 	if(close(sockfd_client) < 0)
 		err_sys("Socket close error");
+
+	return 0;
 }

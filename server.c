@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
+
 void err_sys(char* mes);
 
 int main(){
 	int sockfd_listen, sockfd_client;
-	int clntLen;
 	char recvbuf[10];
 	struct sockaddr_in addrport, echoClntAddr;
 	addrport.sin_family = AF_INET;
@@ -25,7 +26,7 @@ int main(){
 
 	/* Repeat: */
 //	while(1){
-		clntLen = sizeof(echoClntAddr);
+		socklen_t clntLen = sizeof(echoClntAddr);
 		if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&echoClntAddr, &clntLen)) < 0)
 			err_sys("Socket accept error");
 
@@ -39,6 +40,8 @@ int main(){
 
 	if(close(sockfd_listen) < 0)
 		err_sys("Socket close error");
+
+	return 0;
 }
 
 void err_sys(char* mes){
