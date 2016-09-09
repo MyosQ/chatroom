@@ -34,7 +34,7 @@ int main(){
 			err_sys("Socket recieve error");
 
 		fputs(recvbuf, stdout);
-
+		putchar('\n');
 //	}
 
 	if(close(sockfd_listen) < 0)

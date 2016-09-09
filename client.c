@@ -23,10 +23,10 @@ int main(){
 	if(connect(sockfd_client, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) < 0)
 		err_sys("Socket connect error");
 
-	char* echoString = "Hola!\n";
+	char* echoString = "Hola!\0";
 	int echoStrLen = strlen(echoString);
 
-	if(send(sockfd_client, echoString, echoStrLen, 0) != echoStrLen)
+	if(send(sockfd_client, echoString, echoStrLen+1, 0) != echoStrLen+1)
 		err_sys("Socket send error, different number of bytes than expected");
 
 	if(close(sockfd_client) < 0)
