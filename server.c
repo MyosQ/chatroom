@@ -6,58 +6,38 @@
 #include <unistd.h>
 #include <pthread.h>
 #define MESBUFSIZE 128
+#define PORT_LISTEN 5100
+#define MAX_PENDING 10
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
+int socket_initialize();
+void handleTcpClient(int sockfd);
 
 int main(){
-	pthread_t thread1;
-	int sockfd_listen, sockfd_client, bufLen;
-	struct sockaddr_in addrport, echoClntAddr;
-	socklen_t clntLen = sizeof(echoClntAddr);
-	char sendbuf[MESBUFSIZE];
+	pid_t pid;
+	int sockfd_listen, sockfd_client;
+	struct sockaddr_in clientAddr;
+	socklen_t clntLen = sizeof(clientAddr);
 
-	addrport.sin_family = AF_INET;
-	addrport.sin_port = htons(5100);
-	addrport.sin_addr.s_addr = htonl(INADDR_ANY);
+	/* initialize socket */
+	sockfd_listen = socket_initialize();
 
-	if((sockfd_listen = socket(PF_INET, SOCK_STREAM, 0)) < 0)
-		err_sys("Socket open error");
-	printf("Socket created succesfully\n");
-
-	if(bind(sockfd_listen, (struct sockaddr*)&addrport, sizeof(addrport)) < 0)
-		err_sys("Socket bind error");
-
-	if(listen(sockfd_listen, 10) < 0)
-		err_sys("Socket listen error");
-
-	printf("Listening...\n");
-	if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&echoClntAddr, &clntLen)) < 0)
-		err_sys("Socket accept error");
-
-	/* Accepted, new thread for recieving msg */
-	if (pthread_create(&thread1, NULL, receivemsg, (void*)sockfd_client) != 0)
-		err_sys("Pthread_Create error");
-	printf("Connection established, type message to client...\n");
-
+	/* Accept incoming connections */
 	while(1){
-		/* Get message from stdin */
-		if(fgets(sendbuf, MESBUFSIZE, stdin) == NULL)
-			err_sys("error, fgets = null");
+		if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &clntLen)) < 0)
+			err_sys("Socket accept error");
 
-
-		/* Send message */
-		bufLen = strlen(sendbuf);
-		if(bufLen > 1)
-			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1){
-				fprintf(stderr,"send error, sent different number of bytes than expected\n");
-				exit(EXIT_FAILURE);
-			}
+		/* Accepted, create process for recieving msg */
+		if((pid = fork()) < 0)
+			err_sys("fork error");
+		else if(pid == 0){
+			close(sockfd_listen);
+			handleTcpClient(sockfd_client);
+		}
+		else
+			close(sockfd_client);
 	}
-
-	if(close(sockfd_listen) < 0)
-		err_sys("Socket close error");
-	printf("Socket closed succesfully\n");
 	return 0;
 }
 
@@ -66,8 +46,8 @@ void err_sys(char* mes){
 	exit(EXIT_FAILURE);
 }
 
-void *receivemsg(void* sockfd){
-	int sockfd_client = (int)sockfd;
+void handleTcpClient(int sockfd){
+	int sockfd_client = sockfd;
 	char recvbuf[MESBUFSIZE], text[] = "Client: \0";
 
 	while(1){
@@ -77,4 +57,25 @@ void *receivemsg(void* sockfd){
 		fputs(text, stdout);
 		fputs(recvbuf, stdout);
 	}
+}
+int socket_initialize(){
+	int sockfd_listen;
+	struct sockaddr_in addrport;
+	addrport.sin_family = AF_INET;
+	addrport.sin_port = htons(PORT_LISTEN);
+	addrport.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	if((sockfd_listen = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+		err_sys("Socket open error");
+	printf("Socket created succesfully\n");
+
+	if(bind(sockfd_listen, (struct sockaddr*)&addrport, sizeof(addrport)) < 0)
+		err_sys("Socket bind error");
+
+	if(listen(sockfd_listen, MAX_PENDING) < 0)
+		err_sys("Socket listen error");
+
+	printf("Listening...\n");
+
+	return sockfd_listen;
 }

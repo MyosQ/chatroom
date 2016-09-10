@@ -29,10 +29,10 @@ void* receivemsg(void* sockfd){
 
 int main(){
 	int sockfd_client, bufLen, ret;
-	struct sockaddr_in echoServAddr;
-	echoServAddr.sin_family = AF_INET;
-	echoServAddr.sin_addr.s_addr = inet_addr("192.168.1.15");
-	echoServAddr.sin_port = htons(5100);
+	struct sockaddr_in servAddr;
+	servAddr.sin_family = AF_INET;
+	servAddr.sin_addr.s_addr = inet_addr("192.168.1.15");
+	servAddr.sin_port = htons(5100);
 	char sendbuf[128];
 	pthread_t thread1;
 
@@ -40,7 +40,7 @@ int main(){
 		err_sys("Socket create error");
 	printf("Socket created...\n");
 
-	if(connect(sockfd_client, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr)) < 0)
+	if(connect(sockfd_client, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
 		err_sys("Socket connect error");
 	printf("Connection established\n");
 
@@ -52,7 +52,7 @@ int main(){
 	/* Send messages */
 	while(1){
 
-		/* Get message */
+		/* Get message from stdin */
 		if((fgets(sendbuf, MESBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
 
@@ -61,9 +61,6 @@ int main(){
 			break;
 
 		bufLen = strlen(sendbuf);
-		printf("buflen : %d ", bufLen);
-		printf("Lastchar :%d\n", sendbuf[bufLen]);
-		printf("nastLastchar :%d\n", sendbuf[bufLen-1]);
 		if(bufLen > 1)
 			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1){
 				fprintf(stderr,"Socket send error, sent different number of bytes than expected\n");
@@ -74,7 +71,7 @@ int main(){
 	/* Close socket */
 	if(close(sockfd_client) < 0)
 		err_sys("Socket close error");
-	printf("Socket closed succesfully\n");
+	printf("Socket closed successfully\n");
 
 	return 0;
 }
