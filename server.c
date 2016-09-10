@@ -11,9 +11,10 @@ void *receivemsg(void* sockfd);
 
 int main(){
 	pthread_t thread1;
-	int sockfd_listen, sockfd_client;
+	int sockfd_listen, sockfd_client, bufLen;
 	struct sockaddr_in addrport, echoClntAddr;
 	socklen_t clntLen = sizeof(echoClntAddr);
+	char sendbuf[128];
 
 	addrport.sin_family = AF_INET;
 	addrport.sin_port = htons(5100);
@@ -36,14 +37,17 @@ int main(){
 	/* Accepted, new thread for recieving msg */
 	if (pthread_create(&thread1, NULL, receivemsg, (void*)sockfd_client) != 0)
 		err_sys("Pthread_Create error");
-
-
 	printf("Connection established, type message to client...\n");
-	char sendbuf[128];
-	while(fgets(sendbuf, 128, stdin) != NULL){
 
-		if(send(sockfd_client, sendbuf, strlen(sendbuf), 0) != strlen(sendbuf))
-			err_sys("Server send error");
+	while(1){
+		if(fgets(sendbuf, 128, stdin) == NULL)
+			err_sys("error, fgets = null");
+
+
+		bufLen = strlen(sendbuf);
+		if(bufLen > 0)
+			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1)
+				fprintf(stderr,"send error, sent different number of bytes than expected\n");
 
 	}
 
@@ -60,13 +64,13 @@ void err_sys(char* mes){
 
 void *receivemsg(void* sockfd){
 	int sockfd_client = (int)sockfd;
-	char recvbuf[10];
+	char recvbuf[10], text[] = "Client: \0";
 
-	printf("Receiving...\n");
 	while(1){
 		if(recv(sockfd_client, recvbuf, 10, 0) <= 0)
 			err_sys("Socket recieve error");
 
+		fputs(text, stdout);
 		fputs(recvbuf, stdout);
 	}
 }
