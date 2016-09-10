@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -20,6 +21,7 @@ int main(){
 
 	if((sockfd_listen = socket(PF_INET, SOCK_STREAM, 0)) < 0)
 		err_sys("Socket open error");
+	printf("Socket created succesfully\n");
 
 	if(bind(sockfd_listen, (struct sockaddr*)&addrport, sizeof(addrport)) < 0)
 		err_sys("Socket bind error");
@@ -36,11 +38,18 @@ int main(){
 		err_sys("Pthread_Create error");
 
 
-	sleep(60);
+	printf("Connection established, type message to client...\n");
+	char sendbuf[128];
+	while(fgets(sendbuf, 128, stdin) != NULL){
+
+		if(send(sockfd_client, sendbuf, strlen(sendbuf), 0) != strlen(sendbuf))
+			err_sys("Server send error");
+
+	}
 
 	if(close(sockfd_listen) < 0)
 		err_sys("Socket close error");
-
+	printf("Socket closed succesfully\n");
 	return 0;
 }
 
