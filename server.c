@@ -5,6 +5,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <pthread.h>
+#define MESBUFSIZE 128
+#define MAX_PENDING 10
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
@@ -14,7 +16,7 @@ int main(){
 	int sockfd_listen, sockfd_client, bufLen;
 	struct sockaddr_in addrport, echoClntAddr;
 	socklen_t clntLen = sizeof(echoClntAddr);
-	char sendbuf[128];
+	char sendbuf[MESBUFSIZE];
 
 	addrport.sin_family = AF_INET;
 	addrport.sin_port = htons(5100);
@@ -40,15 +42,18 @@ int main(){
 	printf("Connection established, type message to client...\n");
 
 	while(1){
-		if(fgets(sendbuf, 128, stdin) == NULL)
+		/* Get message from stdin */
+		if(fgets(sendbuf, MESBUFSIZE, stdin) == NULL)
 			err_sys("error, fgets = null");
 
 
+		/* Send message */
 		bufLen = strlen(sendbuf);
 		if(bufLen > 0)
-			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1)
+			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1){
 				fprintf(stderr,"send error, sent different number of bytes than expected\n");
-
+				exit(EXIT_FAILURE);
+			}
 	}
 
 	if(close(sockfd_listen) < 0)
@@ -64,10 +69,10 @@ void err_sys(char* mes){
 
 void *receivemsg(void* sockfd){
 	int sockfd_client = (int)sockfd;
-	char recvbuf[10], text[] = "Client: \0";
+	char recvbuf[MESBUFSIZE], text[] = "Client: \0";
 
 	while(1){
-		if(recv(sockfd_client, recvbuf, 10, 0) <= 0)
+		if(recv(sockfd_client, recvbuf, MAX_PENDING, 0) <= 0)
 			err_sys("Socket recieve error");
 
 		fputs(text, stdout);

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#define MESBUFSIZE 128
 
 void err_sys(char* mes){
 	perror(mes);
@@ -15,10 +16,10 @@ void err_sys(char* mes){
 
 void* receivemsg(void* sockfd){
 	int sockfd_client = (int)sockfd;
-	char recvbuf[128], text[9] = "Server: \0";
+	char recvbuf[MESBUFSIZE], text[9] = "Server: \0";
 
 	while(1){
-		if(recv(sockfd_client, recvbuf, 128, 0) < 0)
+		if(recv(sockfd_client, recvbuf, MESBUFSIZE, 0) <= 0)
 			err_sys("Receive error");
 
 		fputs(text,stdout);
@@ -52,7 +53,7 @@ int main(){
 	while(1){
 
 		/* Get message */
-		if((fgets(sendbuf, 128, stdin)) == NULL)
+		if((fgets(sendbuf, MESBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
 
 		/* Exit if client types 'quit' */
