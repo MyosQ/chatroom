@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #define MESBUFSIZE 128
-#define MAX_PENDING 10
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
@@ -49,7 +48,7 @@ int main(){
 
 		/* Send message */
 		bufLen = strlen(sendbuf);
-		if(bufLen > 0)
+		if(bufLen > 1)
 			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1){
 				fprintf(stderr,"send error, sent different number of bytes than expected\n");
 				exit(EXIT_FAILURE);
@@ -72,7 +71,7 @@ void *receivemsg(void* sockfd){
 	char recvbuf[MESBUFSIZE], text[] = "Client: \0";
 
 	while(1){
-		if(recv(sockfd_client, recvbuf, MAX_PENDING, 0) <= 0)
+		if(recv(sockfd_client, recvbuf, MESBUFSIZE, 0) <= 0)
 			err_sys("Socket recieve error");
 
 		fputs(text, stdout);
