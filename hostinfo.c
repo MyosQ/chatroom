@@ -28,11 +28,11 @@ int main(int argc, char* argv[]){
 	}
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_flags = AI_CANONNAME;
+	hints.ai_flags = AI_PASSIVE;
 	hints.ai_family = AF_UNSPEC;
 
 	/* Get info */
-	if((err = getaddrinfo(argv[1], argv[2], &hints, &ailist)) != 0){
+	if((err = getaddrinfo(NULL, argv[2], &hints, &ailist)) != 0){// NULL !
 		sprintf(errbuf,"getaddrinfo error: %s", gai_strerror(err));
 		err_quit(errbuf);
 	}
