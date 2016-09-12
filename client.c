@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <netdb.h>
 #define MESBUFSIZE 128
 
 void err_sys(char* mes){
@@ -14,49 +15,38 @@ void err_sys(char* mes){
 	exit(EXIT_FAILURE);
 }
 
-void* receivemsg(void* sockfd){
-	int sockfd_client = (int)sockfd;
-	char recvbuf[MESBUFSIZE], text[9] = "Server: \0";
-
-	while(1){
-		if(recv(sockfd_client, recvbuf, MESBUFSIZE, 0) <= 0)
-			err_sys("Receive error");
-
-		fputs(text,stdout);
-		fputs(recvbuf, stdout);
-	}
-}
-
 int main(){
-	int sockfd_client, bufLen, ret;
-	struct sockaddr_in servAddr;
-	servAddr.sin_family = AF_INET;
-	servAddr.sin_addr.s_addr = inet_addr("192.168.1.15");
-	servAddr.sin_port = htons(5100);
-	char sendbuf[128];
-	pthread_t thread1;
+	struct addrinfo hints, *res;
+	int sockfd_client, err;
+	char sendbuf[MESBUFSIZE];
+	int bufLen;
 
-	if((sockfd_client = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-		err_sys("Socket create error");
-	printf("Socket created...\n");
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
 
-	if(connect(sockfd_client, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
-		err_sys("Socket connect error");
-	printf("Connection established\n");
+	if((err = getaddrinfo("127.0.0.1", "1234", &hints, &res)) != 0){
+		fprintf(stderr, "getaddrinfo error: %s", gai_strerror(err));
+		exit(EXIT_FAILURE);
+	}
 
-	/* Create thread for receiving */
-	if((ret = pthread_create(&thread1, NULL, receivemsg, (void*) sockfd_client)) != 0)
-		err_sys("Threadcreate error");
-
+	if((sockfd_client = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0){
+		freeaddrinfo(res);
+		err_sys("socket error");
+	}
+	if(connect(sockfd_client, res->ai_addr, res->ai_addrlen) != 0){
+		freeaddrinfo(res);
+		err_sys("socket error");
+	}
+	freeaddrinfo(res);
 
 	/* Send messages */
+	printf("Type message: ");
 	while(1){
 
-		/* Get message from stdin */
 		if((fgets(sendbuf, MESBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
 
-		/* Exit if client types 'quit' */
 		if(!strncmp(sendbuf, "quit", 4))
 			break;
 
@@ -68,10 +58,9 @@ int main(){
 			}
 	}
 
-	/* Close socket */
 	if(close(sockfd_client) < 0)
 		err_sys("Socket close error");
 	printf("Socket closed successfully\n");
 
-	return 0;
+	exit(0);
 }
