@@ -10,22 +10,24 @@
 #include <netdb.h>
 #define MESBUFSIZE 128
 
-void err_sys(char* mes){
-	perror(mes);
-	exit(EXIT_FAILURE);
-}
+void err_sys(char* mes);
 
-int main(){
+int main(int argc, char* argv[]){
 	struct addrinfo hints, *res;
 	int sockfd_client, err;
 	char sendbuf[MESBUFSIZE];
 	int bufLen;
 
+	if(argc != 3){
+		fprintf(stderr, "Usage: %s <ipaddress> <port>\n", argv[0]);
+		return -1;
+	}
+
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 
-	if((err = getaddrinfo("127.0.0.1", "1234", &hints, &res)) != 0){
+	if((err = getaddrinfo(argv[1], argv[2], &hints, &res)) != 0){
 		fprintf(stderr, "getaddrinfo error: %s", gai_strerror(err));
 		exit(EXIT_FAILURE);
 	}
@@ -63,4 +65,9 @@ int main(){
 	printf("Socket closed successfully\n");
 
 	exit(0);
+}
+
+void err_sys(char* mes){
+	perror(mes);
+	exit(EXIT_FAILURE);
 }

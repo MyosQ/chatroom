@@ -19,6 +19,7 @@ int main(int argc, char *argv[]){
 	int sockfd_listen, sockfd_client;
 	struct sockaddr_storage clientAddr;
 	socklen_t addr_size;
+	addr_size = sizeof(clientAddr);
 	pid_t pid;
 
 	if(argc != 2){
@@ -29,7 +30,6 @@ int main(int argc, char *argv[]){
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
 
-	addr_size = sizeof(clientAddr);
 
 	/* Accept incoming connections */
 	while(1){
