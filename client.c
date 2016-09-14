@@ -28,8 +28,8 @@ int main(int argc, char* argv[]){
 	hints.ai_socktype = SOCK_STREAM;
 
 	if((err = getaddrinfo(argv[1], argv[2], &hints, &res)) != 0){
-		fprintf(stderr, "getaddrinfo error: %s", gai_strerror(err));
-		exit(EXIT_FAILURE);
+		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(err));
+ 		exit(EXIT_FAILURE);
 	}
 
 	if((sockfd_client = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0){
@@ -38,12 +38,12 @@ int main(int argc, char* argv[]){
 	}
 	if(connect(sockfd_client, res->ai_addr, res->ai_addrlen) != 0){
 		freeaddrinfo(res);
-		err_sys("socket error");
+		err_sys("connect error");
 	}
 	freeaddrinfo(res);
 
 	/* Send messages */
-	printf("Type message: ");
+	printf("Type messages:\n");
 	while(1){
 
 		if((fgets(sendbuf, MESBUFSIZE, stdin)) == NULL)

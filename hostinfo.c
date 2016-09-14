@@ -29,10 +29,11 @@ int main(int argc, char* argv[]){
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_flags = AI_PASSIVE;
-	hints.ai_family = AF_UNSPEC;
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
 
 	/* Get info */
-	if((err = getaddrinfo(NULL, argv[2], &hints, &ailist)) != 0){// NULL !
+	if((err = getaddrinfo(NULL, argv[2], &hints, &ailist)) != 0){
 		sprintf(errbuf,"getaddrinfo error: %s", gai_strerror(err));
 		err_quit(errbuf);
 	}

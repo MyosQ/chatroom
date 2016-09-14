@@ -17,7 +17,7 @@ int main(int argc, char* argv[]){
 	struct sockaddr_in6 *ipv6;
 
 	if(argc != 2){
-		fprintf(stderr,"error usage\n");
+		fprintf(stderr,"Usage: %s <hostname>\n", argv[0]);
 		return(1);
 	}
 
@@ -25,8 +25,7 @@ int main(int argc, char* argv[]){
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 
-
-	if((status = getaddrinfo(argv[1], NULL, NULL, &res)) != 0){
+	if((status = getaddrinfo(argv[1], NULL, &hints, &res)) != 0){
 		fprintf(stderr,"getaddrinfo: %s\n", gai_strerror(status));
 		return(2);
 	}
@@ -34,7 +33,6 @@ int main(int argc, char* argv[]){
 	printf("IP addresses for %s\n\n", argv[1]);
 
 	for(p = res; p != NULL; p = p->ai_next){
-
 		if(p->ai_family == AF_INET){
 			ipv4 = (struct sockaddr_in*)p->ai_addr;
 			addr = &(ipv4->sin_addr);
@@ -48,9 +46,7 @@ int main(int argc, char* argv[]){
 		}
 		inet_ntop(p->ai_family, addr, ipstr, INET6_ADDRSTRLEN);
 		printf("  %s: %s\n", ipver, ipstr);
-
 	}
-
 
 	freeaddrinfo(res);
 	return 0;

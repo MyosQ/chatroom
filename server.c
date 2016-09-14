@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
 #define MESBUFSIZE 128
 
 void err_sys(char* mes);
@@ -14,6 +15,7 @@ void *receivemsg(void* sockfd);
 int socket_initialize(char *port);
 void handleTcpClient(int sockfd);
 int print_peer_info(int sockfd);
+void childreaper(int signo);
 
 int main(int argc, char *argv[]){
 	int sockfd_listen, sockfd_client;
@@ -27,6 +29,9 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
 	}
 
+	/* Signal handler */
+	signal(SIGCHLD, &childreaper);
+
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
 
@@ -36,8 +41,11 @@ int main(int argc, char *argv[]){
 		if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
 			err_sys("Server accept error");
 
-		if((pid = fork()) < 0)
+		if((pid = fork()) < 0){
+			close(sockfd_listen);
+			close(sockfd_client);
 			err_sys("fork error");
+		}
 		else if(pid == 0){
 			close(sockfd_listen);
 			handleTcpClient(sockfd_client);
@@ -81,19 +89,24 @@ int socket_initialize(char *port){
 	freeaddrinfo(result);
 
 	/* Get some binding info */
-	char host[64], service[64];
+	char host[64], service[64], hostname[64];
 	struct sockaddr_in ret;
-	socklen_t sockaddrsize = sizeof(ret);
+	socklen_t sockaddrsize = sizeof(struct sockaddr_in);
 
-	if(getsockname(sockfd_listen, (struct sockaddr*)&ret, &sockaddrsize) != 0)
+	if(getsockname(sockfd_listen, (struct sockaddr*)&ret, &sockaddrsize) != 0){
+		close(sockfd_listen);
 		err_sys("getsockname error");
-
-	if(getnameinfo((struct sockaddr*)&ret, sockaddrsize, host, 64, service, 64, 0) != 0)
+	}
+	if(getnameinfo((struct sockaddr*)&ret, sockaddrsize, host, sizeof(host), service, sizeof(service), NI_NUMERICHOST) != 0){
+		close(sockfd_listen);
 		err_sys("getnameinfo error");
+	}
+	gethostname(hostname, sizeof(hostname));
 
 	/* Print that info */
 	printf("Binding successful!\n");
-	printf("Host: %s", host);
+	printf("Hostname: %s", hostname);
+	printf("\tHostaddress: %s", host);
 	printf("\tService: %s\n", service);
 
 	/* Set up for listening */
@@ -136,7 +149,7 @@ void handleTcpClient(int sockfd){
 	while(1){
 		if((ret = recv(sockfd_client, recvbuf, MESBUFSIZE, 0)) <= 0){
 			if(ret == 0){
-				fprintf(stderr,"Nothing received\n");
+				fprintf(stderr,"Client left you\n");
 				exit(0);
 			}
 			err_sys("Server recieve error");
@@ -145,6 +158,10 @@ void handleTcpClient(int sockfd){
 	}
 }
 
+/* Signal handling function */
+void childreaper(int signo){
+	wait(NULL);
+}
 
 /* Error function */
 void err_sys(char* mes){
