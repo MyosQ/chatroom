@@ -8,15 +8,27 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <netdb.h>
-#define MESBUFSIZE 128
+#define MSGBUFSIZE 256
 
 void err_sys(char* mes);
+void* recvfunc(void *args){
+	int sockfd = (int)args;
+	int nbytes;
+	char recvbuf[MSGBUFSIZE];
+
+	while(1){
+		if((nbytes = recv(sockfd, recvbuf, sizeof(recvbuf), 0)) <= 0)
+			perror("recv error, recvthread");
+
+		fputs(recvbuf, stdout);
+	}
+}
 
 int main(int argc, char* argv[]){
 	struct addrinfo hints, *res;
-	int sockfd_client, err;
-	char sendbuf[MESBUFSIZE];
-	int bufLen;
+	int sockfd_client, err, bufLen;
+	char sendbuf[MSGBUFSIZE];
+	pthread_t recvthread;
 
 	if(argc != 3){
 		fprintf(stderr, "Usage: %s <ipaddress> <port>\n", argv[0]);
@@ -42,19 +54,22 @@ int main(int argc, char* argv[]){
 	}
 	freeaddrinfo(res);
 
+	/* New thread for receiving messages */
+	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd_client) != 0)
+		err_sys("pthread_create() error");
+
 	/* Send messages */
 	printf("Type messages:\n");
 	while(1){
-
-		if((fgets(sendbuf, MESBUFSIZE, stdin)) == NULL)
+		if((fgets(sendbuf, MSGBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
 
 		if(!strncmp(sendbuf, "quit", 4))
 			break;
 
-		bufLen = strlen(sendbuf);
-		if(bufLen > 1)
-			if(send(sockfd_client, sendbuf, bufLen+1, 0) != bufLen+1){
+		bufLen = strlen(sendbuf)+1;
+		if(bufLen > 2)
+			if(send(sockfd_client, sendbuf, bufLen, 0) != bufLen){
 				fprintf(stderr,"Socket send error, sent different number of bytes than expected\n");
 				exit(EXIT_FAILURE);
 			}
@@ -62,8 +77,8 @@ int main(int argc, char* argv[]){
 
 	if(close(sockfd_client) < 0)
 		err_sys("Socket close error");
-	printf("Socket closed successfully\n");
 
+	printf("Socket closed successfully\n");
 	exit(0);
 }
 

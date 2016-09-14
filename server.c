@@ -8,7 +8,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
-#define MESBUFSIZE 128
+#define MSGBUFSIZE 256
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
@@ -16,13 +16,18 @@ int socket_initialize(char *port);
 void handleTcpClient(int sockfd);
 int print_peer_info(int sockfd);
 void childreaper(int signo);
+void update_fd_max(int fd, int* fd_max);
 
 int main(int argc, char *argv[]){
-	int sockfd_listen, sockfd_client;
+	int sockfd_listen, sockfd_client, fd_max = 0, i, j, nbytes;
 	struct sockaddr_storage clientAddr;
 	socklen_t addr_size;
 	addr_size = sizeof(clientAddr);
-	pid_t pid;
+	fd_set read_fds, connected_fds;
+	char msgbuf[MSGBUFSIZE];
+
+	FD_ZERO(&read_fds);
+	FD_ZERO(&connected_fds);
 
 	if(argc != 2){
 		fprintf(stderr,"Usage: %s <port>\n\n", argv[0]);
@@ -35,24 +40,49 @@ int main(int argc, char *argv[]){
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
 
+	/* fds-set */
+	FD_SET(sockfd_listen, &connected_fds);
+	update_fd_max(sockfd_listen, &fd_max);
 
-	/* Accept incoming connections */
+	/* Deal with incoming connections */
 	while(1){
-		if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
-			err_sys("Server accept error");
+		read_fds = connected_fds;
+		if(select(fd_max+1, &read_fds, NULL, NULL, NULL) < 0)
+			err_sys("select() error");
 
-		if((pid = fork()) < 0){
-			close(sockfd_listen);
-			close(sockfd_client);
-			err_sys("fork error");
-		}
-		else if(pid == 0){
-			close(sockfd_listen);
-			handleTcpClient(sockfd_client);
-		}
-		else
-			close(sockfd_client);
-	}
+		for(i = 0; i <= fd_max; i++){
+			if(FD_ISSET(i, &read_fds)){
+				if(i == sockfd_listen){
+					if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
+						perror("Server accept error");
+					else{
+						FD_SET(sockfd_client, &connected_fds);
+						update_fd_max(sockfd_client, &fd_max);
+						printf("New connection on socket %d\n", sockfd_client);
+					}
+				}
+				else{
+					if((nbytes = recv(i, msgbuf, sizeof(msgbuf), 0)) <= 0){
+						if(nbytes == 0)
+							printf("connection closed on socket %d\n", i);
+						else
+							perror("recv() error");
+
+						close(i);
+						FD_CLR(i, &connected_fds);
+					}
+					else{
+						for(j = 0; j <= fd_max; j++){
+							if(FD_ISSET(j, &connected_fds) && j != i && j != sockfd_listen){
+								if(send(j, msgbuf, nbytes, 0) != nbytes)
+									perror("send() error");
+							}
+						}
+					}
+				}
+			}/*ifFD_ISSET*/
+		}/*For*/
+	}/*While*/
 	return 0;
 }
 
@@ -142,12 +172,12 @@ int print_peer_info(int sockfd){
 void handleTcpClient(int sockfd){
 	int ret;
 	int sockfd_client = sockfd;
-	char recvbuf[MESBUFSIZE];
+	char recvbuf[MSGBUFSIZE];
 
 	print_peer_info(sockfd_client);
 
 	while(1){
-		if((ret = recv(sockfd_client, recvbuf, MESBUFSIZE, 0)) <= 0){
+		if((ret = recv(sockfd_client, recvbuf, sizeof(recvbuf), 0)) <= 0){
 			if(ret == 0){
 				fprintf(stderr,"Client left you\n");
 				exit(0);
@@ -156,6 +186,12 @@ void handleTcpClient(int sockfd){
 		}
 		fputs(recvbuf, stdout);
 	}
+}
+
+/* Smooth helper function */
+void update_fd_max(int fd, int* fd_max){
+	if(fd > *fd_max)
+		*fd_max = fd;
 }
 
 /* Signal handling function */
