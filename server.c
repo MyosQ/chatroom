@@ -1,27 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/wait.h>
-#define MSGBUFSIZE 256
-#define MAXUSERS 10
-#define USERNAMELEN 20
-#define USERSONLINEBUF 512
-
-void err_sys(char* mes);
-void *receivemsg(void* sockfd);
-int socket_initialize(char *port);
-void handleTcpClient(int sockfd);
-int get_peer_info(int sockfd, char* host, char* service);
-void update_fd_max(int fd, int* fd_max);
-int accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max);
-void set_username(int i, char* msgbuf, int nbytes, char** usernamearray);
-void send_users_online(int newfd, int listener, fd_set connected_fds, int fd_max, char** usernames);
+#include "chat.h"
 
 int main(int argc, char *argv[]){
 	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen, newfd;
@@ -42,7 +19,7 @@ int main(int argc, char *argv[]){
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
 
-	/* fds-set */
+	/* set listener socket into fd-set */
 	FD_SET(sockfd_listen, &connected_fds);
 	update_fd_max(sockfd_listen, &fd_max);
 
@@ -63,12 +40,13 @@ int main(int argc, char *argv[]){
 		for(i = 0; i <= fd_max; i++){
 			if(FD_ISSET(i, &read_fds)){
 				if(i == sockfd_listen){
+
+					/* Deal with new connection */
 					newfd = accept_request(i, &connected_fds, &fd_max);
 					send_users_online(newfd, i, connected_fds, fd_max, usernamearray);
 				}
 				else{
-					//forward_message_to_all(i, )
-
+					/* Deal with message from connected client */
 					if((nbytes = recv(i, msgbuf, sizeof(msgbuf), 0)) <= 0){
 						if(nbytes == 0)
 							printf("connection closed on socket %d\n", i);
@@ -77,6 +55,7 @@ int main(int argc, char *argv[]){
 
 						close(i);
 						FD_CLR(i, &connected_fds);
+						memset(usernamearray[i], 0, USERNAMELEN);
 					}
 					else{
 						if(!strncmp(msgbuf, "username:", 9)){
@@ -124,12 +103,12 @@ void send_users_online(int newfd, int listener, fd_set connected_fds, int fd_max
 
 		else if(FD_ISSET(k, &connected_fds) && k != newfd && k != listener){
 			memset(&useronline, 0, sizeof(useronline));
-
-			if(get_peer_info(k, host, service) != 0)
+			if(get_peer_info(k, host, service) != 0){
 				snprintf(useronline, sizeof(useronline),"Couldnt get hostinfo on socket %d\n", k);
-			else
+			}
+			else{
 				snprintf(useronline, sizeof(useronline), "%s %s %s %s\n", "Host:", host, "Username:", (usernames[k][0]) ? usernames[k] : "Unknown.");
-
+			}
 			strcat(totalmsg, useronline);
 		}
 	}
@@ -162,8 +141,11 @@ int accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max){
 
 /* Create and bind socket (only server)*/
 int socket_initialize(char *port){
+	char host[64], service[64], hostname[64];
 	int sockfd_listen, err;
 	struct addrinfo hints, *result, *p;
+	struct sockaddr_in ret;
+	socklen_t sockaddrsize = sizeof(struct sockaddr_in);
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -193,10 +175,6 @@ int socket_initialize(char *port){
 	}
 
 	/* Get some binding info */
-	char host[64], service[64], hostname[64];
-	struct sockaddr_in ret;
-	socklen_t sockaddrsize = sizeof(struct sockaddr_in);
-
 	if(getsockname(sockfd_listen, (struct sockaddr*)&ret, &sockaddrsize) != 0){
 		close(sockfd_listen);
 		err_sys("getsockname error");
@@ -224,26 +202,21 @@ int socket_initialize(char *port){
 
 /* Print info about peer using its socket */
 int get_peer_info(int sockfd, char* host, char* service){
-//	char host[64], service[64];
 	struct sockaddr addr;
 	socklen_t size = sizeof(addr);
-//	printf("New connected client on socket %d:", sockfd);
 
 	if(getpeername(sockfd, &addr, &size) < 0){
 		fprintf(stderr,"couldnt get peer info");
 		return -1;
 	}
-	if(getnameinfo(&addr, size, host, 64, service, 64, NI_NUMERICHOST) != 0){
+	if(getnameinfo(&addr, size, host, 64, service, 64, 0) != 0){
 		fprintf(stderr,"getnameinfo error");
 		return -1;
 	}
-//	printf(" %s", host);
-//	printf(" %s\n\n", service);
-
 	return 0;
 }
 
-/* Not being used on this branch */
+/* Not being used in this program */
 void handleTcpClient(int sockfd){
 	int ret;
 	int sockfd_client = sockfd;

@@ -1,23 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <netdb.h>
-#define MSGBUFSIZE 256
-
-void err_sys(char* mes);
-void* recvfunc(void *args);
-void print_welcome(void);
-int setup_client_socket(char* address, char* port);
+#include "chat.h"
 
 int main(int argc, char* argv[]){
 	int sockfd, bufLen;
-	char sendbuf[MSGBUFSIZE], welcomerecv[512];
+	char sendbuf[MSGBUFSIZE], users[USERSONLINEBUF];
 	pthread_t recvthread;
 
 	/* Check input arguments */
@@ -29,12 +14,10 @@ int main(int argc, char* argv[]){
 	/* Connect socket */
 	sockfd = setup_client_socket(argv[1], argv[2]);
 
-	/* Print info */
-	if(recv(sockfd, welcomerecv, sizeof(welcomerecv), 0) <= 0 )
+	/* Print welcome info */
+	if(recv(sockfd, users, sizeof(users), 0) <= 0 )
 		err_sys("first recv error");
-	print_welcome();
-	printf("Users online: \n");
-	printf("%s\n", welcomerecv);
+	print_welcome(users);
 
 	/* New thread for receiving messages */
 	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd) != 0)
@@ -51,11 +34,10 @@ int main(int argc, char* argv[]){
 			break;
 
 		bufLen = strlen(sendbuf)+1;
-		if(bufLen > 2)
-			if(send(sockfd, sendbuf, bufLen, 0) != bufLen){
-				fprintf(stderr,"Socket send error, sent different number of bytes than expected\n");
-				exit(EXIT_FAILURE);
-			}
+		if(bufLen > 2)/*to prevent sending only newline*/
+			if(send(sockfd, sendbuf, bufLen, 0) != bufLen)
+				fprintf(stderr,"Socket send error, sent different number of bytes than expected\ncontinuing...\n");
+
 	}
 
 	if(close(sockfd) < 0)
@@ -115,16 +97,18 @@ int setup_client_socket(char* address, char* port){
 
 
 /* Welcome info */
-void print_welcome(void){
-	printf("Welcome to the rPi groupchat!\n\n");
+void print_welcome(char* users){
+	printf("Welcome to the epic RPi-hosted groupchat!\n\n");
 	printf("Here you can send messages to other connected clients.\n");
-	printf("Type \"quit\" to quit.\n");
-	printf("To get a user alias, type \"username:yourusername\". Then people will know who sent the message\n\n");
-
+	printf("To get a user alias, type \"username:yourusername\". Then people will know who sent the message\n");
+	printf("Type \"quit\" to quit.\n\n");
+	printf("Users online right now: \n");
+	printf("%s\n", users);
 }
 
 /* Helping error function */
 void err_sys(char* mes){
 	perror(mes);
+	fflush(stdout);
 	exit(EXIT_FAILURE);
 }
