@@ -16,8 +16,8 @@ void print_welcome(void);
 int setup_client_socket(char* address, char* port);
 
 int main(int argc, char* argv[]){
-	int sockfd_client, bufLen;
-	char sendbuf[MSGBUFSIZE];
+	int sockfd, bufLen;
+	char sendbuf[MSGBUFSIZE], welcomerecv[512];
 	pthread_t recvthread;
 
 	/* Check input arguments */
@@ -27,15 +27,17 @@ int main(int argc, char* argv[]){
 	}
 
 	/* Connect socket */
-	sockfd_client = setup_client_socket(argv[1], argv[2]);
+	sockfd = setup_client_socket(argv[1], argv[2]);
 
 	/* Print info */
-//	getusersonline();
+	if(recv(sockfd, welcomerecv, sizeof(welcomerecv), 0) <= 0 )
+		err_sys("first recv error");
 	print_welcome();
-//	printusersonline();
+	printf("Users online: \n");
+	printf("%s\n", welcomerecv);
 
 	/* New thread for receiving messages */
-	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd_client) != 0)
+	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd) != 0)
 		err_sys("pthread_create() error");
 
 
@@ -50,13 +52,13 @@ int main(int argc, char* argv[]){
 
 		bufLen = strlen(sendbuf)+1;
 		if(bufLen > 2)
-			if(send(sockfd_client, sendbuf, bufLen, 0) != bufLen){
+			if(send(sockfd, sendbuf, bufLen, 0) != bufLen){
 				fprintf(stderr,"Socket send error, sent different number of bytes than expected\n");
 				exit(EXIT_FAILURE);
 			}
 	}
 
-	if(close(sockfd_client) < 0)
+	if(close(sockfd) < 0)
 		err_sys("Socket close error");
 
 	printf("Socket closed successfully.\nBye!\n");
@@ -79,7 +81,9 @@ void* recvfunc(void *args){
 		putchar('\n');
 		putchar('\t');
 		fputs(recvbuf, stdout);
-		printf(">>");
+		putchar('>');
+		putchar('>');
+		fflush(stdout);
 	}
 }
 

@@ -11,18 +11,20 @@
 #define MSGBUFSIZE 256
 #define MAXUSERS 10
 #define USERNAMELEN 20
+#define USERSONLINEBUF 512
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
 int socket_initialize(char *port);
 void handleTcpClient(int sockfd);
-int print_peer_info(int sockfd);
+int get_peer_info(int sockfd, char* host, char* service);
 void update_fd_max(int fd, int* fd_max);
-void accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max);
+int accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max);
 void set_username(int i, char* msgbuf, int nbytes, char** usernamearray);
+void send_users_online(int newfd, int listener, fd_set connected_fds, int fd_max, char** usernames);
 
 int main(int argc, char *argv[]){
-	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen;
+	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen, newfd;
 	fd_set read_fds, connected_fds;
 	char msgbuf[MSGBUFSIZE], userandmsg[MSGBUFSIZE];
 	char** usernamearray;
@@ -32,13 +34,6 @@ int main(int argc, char *argv[]){
 		fprintf(stderr,"Usage: %s <port>\n\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-
-	/* Allocate username array */
-	if((usernamearray = calloc(MAXUSERS, sizeof(char*))) == NULL)
-		err_sys("Couldnt allocate memory");
-	for(i = 0; i < MAXUSERS; i++)
-		if((usernamearray[i] = calloc(USERNAMELEN, sizeof(char))) == NULL)
-			err_sys("Couldnt allocate memory");
 
 	/* Zero fds's */
 	FD_ZERO(&read_fds);
@@ -51,6 +46,14 @@ int main(int argc, char *argv[]){
 	FD_SET(sockfd_listen, &connected_fds);
 	update_fd_max(sockfd_listen, &fd_max);
 
+
+	/* Allocate username array */
+	if((usernamearray = calloc(MAXUSERS, sizeof(char*))) == NULL)
+		err_sys("Couldnt allocate memory");
+	for(i = 0; i < MAXUSERS; i++)
+		if((usernamearray[i] = calloc(USERNAMELEN, sizeof(char))) == NULL)
+			err_sys("Couldnt allocate memory");
+
 	/* Deal with readable sockets */
 	while(1){
 		read_fds = connected_fds;
@@ -59,10 +62,13 @@ int main(int argc, char *argv[]){
 
 		for(i = 0; i <= fd_max; i++){
 			if(FD_ISSET(i, &read_fds)){
-				if(i == sockfd_listen)
-					accept_request(i, &connected_fds, &fd_max);
-
+				if(i == sockfd_listen){
+					newfd = accept_request(i, &connected_fds, &fd_max);
+					send_users_online(newfd, i, connected_fds, fd_max, usernamearray);
+				}
 				else{
+					//forward_message_to_all(i, )
+
 					if((nbytes = recv(i, msgbuf, sizeof(msgbuf), 0)) <= 0){
 						if(nbytes == 0)
 							printf("connection closed on socket %d\n", i);
@@ -104,18 +110,52 @@ int main(int argc, char *argv[]){
 	return 0;
 }
 
-/* Accept incoming request and print some information */
-void accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max){
+
+/*Function that sends info about connect hosts to newly connected client */
+void send_users_online(int newfd, int listener, fd_set connected_fds, int fd_max, char** usernames){
+	int k;
+	char host[64], service[64], useronline[128], totalmsg[512];
+	memset(&totalmsg, 0, sizeof(totalmsg));
+
+	/* Build the total message */
+	for(k = 0; k <= fd_max; k++){
+		if(k == newfd)
+			strncat(totalmsg,"You\n", 4);
+
+		else if(FD_ISSET(k, &connected_fds) && k != newfd && k != listener){
+			memset(&useronline, 0, sizeof(useronline));
+
+			if(get_peer_info(k, host, service) != 0)
+				snprintf(useronline, sizeof(useronline),"Couldnt get hostinfo on socket %d\n", k);
+			else
+				snprintf(useronline, sizeof(useronline), "%s %s %s %s\n", "Host:", host, "Username:", (usernames[k][0]) ? usernames[k] : "Unknown.");
+
+			strcat(totalmsg, useronline);
+		}
+	}
+	totalmsg[strlen(totalmsg)] = '\0';
+	send(newfd, totalmsg, sizeof(totalmsg), 0);
+}
+
+/* Accept incoming request and print some information
+   Returns new sockfd */
+int accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max){
 	int sockfd_client;
+	char host[64], service[64];
 	struct sockaddr_storage clientAddr;
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 
-	if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
+	if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0){
 		perror("Server accept error");
+		return -1;
+	}
 	else{
 		FD_SET(sockfd_client, connected_fds);
 		update_fd_max(sockfd_client, fd_max);
-		print_peer_info(sockfd_client);
+		get_peer_info(sockfd_client, host, service);
+		printf("New connected client on socket %d.  ", sockfd_client);
+		printf("host: %s, service: %s\n", host, service);
+		return sockfd_client;
 	}
 }
 
@@ -146,11 +186,11 @@ int socket_initialize(char *port){
 		close(sockfd_listen);
 	}
 
+	freeaddrinfo(result);
 	if(p == NULL){
 		fprintf(stderr, "Could not bind\n");
 		exit(EXIT_FAILURE);
 	}
-	freeaddrinfo(result);
 
 	/* Get some binding info */
 	char host[64], service[64], hostname[64];
@@ -183,22 +223,22 @@ int socket_initialize(char *port){
 
 
 /* Print info about peer using its socket */
-int print_peer_info(int sockfd){
-	char host[64], service[64];
+int get_peer_info(int sockfd, char* host, char* service){
+//	char host[64], service[64];
 	struct sockaddr addr;
 	socklen_t size = sizeof(addr);
-	printf("New connected client on socket %d:", sockfd);
+//	printf("New connected client on socket %d:", sockfd);
 
 	if(getpeername(sockfd, &addr, &size) < 0){
 		fprintf(stderr,"couldnt get peer info");
 		return -1;
 	}
 	if(getnameinfo(&addr, size, host, 64, service, 64, NI_NUMERICHOST) != 0){
-		fprintf(stderr,"getnameifo error");
+		fprintf(stderr,"getnameinfo error");
 		return -1;
 	}
-	printf(" %s", host);
-	printf(" %s\n\n", service);
+//	printf(" %s", host);
+//	printf(" %s\n\n", service);
 
 	return 0;
 }
@@ -208,8 +248,6 @@ void handleTcpClient(int sockfd){
 	int ret;
 	int sockfd_client = sockfd;
 	char recvbuf[MSGBUFSIZE];
-
-	print_peer_info(sockfd_client);
 
 	while(1){
 		if((ret = recv(sockfd_client, recvbuf, sizeof(recvbuf), 0)) <= 0){
