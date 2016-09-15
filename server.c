@@ -1,5 +1,17 @@
 #include "chat.h"
 
+
+void send_they_left(int leaver, int listener, fd_set connected_fds, int fd_max, char** usernames){
+	int k;
+	char sendbuf[LEFTCHATBUF];
+	snprintf(sendbuf, sizeof(sendbuf), "\n %s left the chat :(\n%c", usernames[leaver][0] ? usernames[leaver] : "Unknown user", '\0');
+
+	for(k = 0; k <= fd_max; k++)
+		if(FD_ISSET(k, &connected_fds) && k != leaver && k != listener)
+			if(send(k, sendbuf, LEFTCHATBUF, 0) != LEFTCHATBUF)
+				fprintf(stderr, "Problem sending 'left-chat messages'");
+}
+
 int main(int argc, char *argv[]){
 	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen, newfd;
 	fd_set read_fds, connected_fds;
@@ -55,6 +67,7 @@ int main(int argc, char *argv[]){
 
 						close(i);
 						FD_CLR(i, &connected_fds);
+						send_they_left(i, sockfd_listen, connected_fds, fd_max, usernamearray);
 						memset(usernamearray[i], 0, USERNAMELEN);
 					}
 					else{
@@ -72,7 +85,7 @@ int main(int argc, char *argv[]){
 										totalLen = strlen(usernamearray[i]) + nbytes + 2;
 									}
 									else{
-										strcpy(userandmsg, "Anonymous: ");
+										strcpy(userandmsg, "Unknown: ");
 										totalLen = 11 + nbytes + 2;
 									}
 									strcat(userandmsg, msgbuf);

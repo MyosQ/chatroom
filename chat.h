@@ -14,6 +14,7 @@
 #define MAXUSERS 10
 #define USERNAMELEN 20
 #define USERSONLINEBUF 512
+#define LEFTCHATBUF 64
 
 /*ser*/
 void *receivemsg(void* sockfd);

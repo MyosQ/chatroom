@@ -58,8 +58,10 @@ void* recvfunc(void *args){
 			if(nbytes < 0)
 				err_sys("recv error()");
 
-			err_sys("nothing to receive, server closed on you");
+			printf("nothing to receive, server closed on you\nBye!\n");
+			exit(EXIT_SUCCESS);
 		}
+		recvbuf[MSGBUFSIZE - 1] = '\0';
 		putchar('\n');
 		putchar('\t');
 		fputs(recvbuf, stdout);
