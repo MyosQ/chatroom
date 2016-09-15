@@ -9,33 +9,40 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #define MSGBUFSIZE 256
+#define MAXUSERS 10
+#define USERNAMELEN 20
 
 void err_sys(char* mes);
 void *receivemsg(void* sockfd);
 int socket_initialize(char *port);
 void handleTcpClient(int sockfd);
 int print_peer_info(int sockfd);
-void childreaper(int signo);
 void update_fd_max(int fd, int* fd_max);
+void accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max);
+void set_username(int i, char* msgbuf, int nbytes, char** usernamearray);
 
 int main(int argc, char *argv[]){
-	int sockfd_listen, sockfd_client, fd_max = 0, i, j, nbytes;
-	struct sockaddr_storage clientAddr;
-	socklen_t addr_size;
-	addr_size = sizeof(clientAddr);
+	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen;
 	fd_set read_fds, connected_fds;
-	char msgbuf[MSGBUFSIZE];
+	char msgbuf[MSGBUFSIZE], userandmsg[MSGBUFSIZE], temp[MSGBUFSIZE];
+	char** usernamearray;
 
+	/* Allocate username array */
+	if((usernamearray = calloc(MAXUSERS, sizeof(char*))) == NULL)
+		err_sys("Couldnt allocate memory");
+	for(i = 0; i < MAXUSERS; i++)
+		if((usernamearray[i] = calloc(USERNAMELEN, sizeof(char))) == NULL)
+			err_sys("Couldnt allocate memory");
+
+	/* Zero fds's */
 	FD_ZERO(&read_fds);
 	FD_ZERO(&connected_fds);
 
+	/* Check arguments */
 	if(argc != 2){
 		fprintf(stderr,"Usage: %s <port>\n\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
-
-	/* Signal handler */
-	signal(SIGCHLD, &childreaper);
 
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
@@ -52,15 +59,9 @@ int main(int argc, char *argv[]){
 
 		for(i = 0; i <= fd_max; i++){
 			if(FD_ISSET(i, &read_fds)){
-				if(i == sockfd_listen){
-					if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
-						perror("Server accept error");
-					else{
-						FD_SET(sockfd_client, &connected_fds);
-						update_fd_max(sockfd_client, &fd_max);
-						printf("New connection on socket %d\n", sockfd_client);
-					}
-				}
+				if(i == sockfd_listen)
+					accept_request(i, &connected_fds, &fd_max);
+
 				else{
 					if((nbytes = recv(i, msgbuf, sizeof(msgbuf), 0)) <= 0){
 						if(nbytes == 0)
@@ -72,10 +73,29 @@ int main(int argc, char *argv[]){
 						FD_CLR(i, &connected_fds);
 					}
 					else{
-						for(j = 0; j <= fd_max; j++){
-							if(FD_ISSET(j, &connected_fds) && j != i && j != sockfd_listen){
-								if(send(j, msgbuf, nbytes, 0) != nbytes)
-									perror("send() error");
+						if(!strncmp(msgbuf, "username:", 9)){
+							set_username(i, msgbuf, nbytes, usernamearray);
+						}
+						else{
+							for(j = 0; j <= fd_max; j++){
+								if(FD_ISSET(j, &connected_fds) && j != i && j != sockfd_listen){
+									/* Build message */
+									memset(userandmsg, 0, sizeof(userandmsg));
+									printf("%d\n", userandmsg[0]);
+									if(usernamearray[i]){
+										strcpy(userandmsg, usernamearray[i]);
+										printf("%d\n", userandmsg[0]);
+										strcat(userandmsg, ": ");
+									}
+									else{
+										printf("%d\n", userandmsg[0]);
+										strcpy(userandmsg, "Anonymous: ");
+									}
+									strcat(userandmsg, msgbuf);
+									totalLen = strlen(usernamearray[i]) + nbytes + 2;
+									if(send(j, userandmsg, totalLen, 0) != totalLen)
+										perror("send() error");
+								}
 							}
 						}
 					}
@@ -85,6 +105,22 @@ int main(int argc, char *argv[]){
 	}/*While*/
 	return 0;
 }
+
+/* Accept incoming request and print some information */
+void accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max){
+	int sockfd_client;
+	struct sockaddr_storage clientAddr;
+	socklen_t addr_size = sizeof(struct sockaddr_in);
+
+	if((sockfd_client = accept(sockfd_listen, (struct sockaddr*)&clientAddr, &addr_size)) < 0)
+		perror("Server accept error");
+	else{
+		FD_SET(sockfd_client, connected_fds);
+		update_fd_max(sockfd_client, fd_max);
+		printf("New connection on socket %d\n", sockfd_client);
+	}
+}
+
 
 /* Create and bind socket */
 int socket_initialize(char *port){
@@ -186,6 +222,17 @@ void handleTcpClient(int sockfd){
 		}
 		fputs(recvbuf, stdout);
 	}
+}
+
+/* Insert username into array */
+void set_username(int i, char* msgbuf, int nbytes, char** usernamearray){
+	nbytes -= 9; /* get rid of first part */
+	if(nbytes > USERNAMELEN)
+		nbytes = USERNAMELEN;
+
+	nbytes -= 2;/* not newline nor null */
+	memcpy((void*)usernamearray[i], &msgbuf[9], nbytes);
+	usernamearray[i][nbytes] = '\0';
 }
 
 /* Smooth helper function */

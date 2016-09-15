@@ -11,18 +11,7 @@
 #define MSGBUFSIZE 256
 
 void err_sys(char* mes);
-void* recvfunc(void *args){
-	int sockfd = (int)args;
-	int nbytes;
-	char recvbuf[MSGBUFSIZE];
-
-	while(1){
-		if((nbytes = recv(sockfd, recvbuf, sizeof(recvbuf), 0)) <= 0)
-			perror("recv error, recvthread");
-
-		fputs(recvbuf, stdout);
-	}
-}
+void* recvfunc(void *args);
 
 int main(int argc, char* argv[]){
 	struct addrinfo hints, *res;
@@ -54,12 +43,14 @@ int main(int argc, char* argv[]){
 	}
 	freeaddrinfo(res);
 
+
+
 	/* New thread for receiving messages */
 	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd_client) != 0)
 		err_sys("pthread_create() error");
 
 	/* Send messages */
-	printf("Type messages:\n");
+	printf("Type messages to other clients. Type \"quit\" to quit.\n");
 	while(1){
 		if((fgets(sendbuf, MSGBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
@@ -81,6 +72,22 @@ int main(int argc, char* argv[]){
 	printf("Socket closed successfully\n");
 	exit(0);
 }
+
+void* recvfunc(void *args){
+	int sockfd = (int)args;
+	int nbytes;
+	char recvbuf[MSGBUFSIZE];
+
+	while(1){
+		if((nbytes = recv(sockfd, recvbuf, sizeof(recvbuf), 0)) <= 0)
+			err_sys("recv error, server probably closed on you");
+
+		putchar('\t');
+		fputs(recvbuf, stdout);
+	}
+}
+
+
 
 void err_sys(char* mes){
 	perror(mes);
