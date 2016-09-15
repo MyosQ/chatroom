@@ -12,50 +12,40 @@
 
 void err_sys(char* mes);
 void* recvfunc(void *args);
+void print_welcome(void);
+int setup_client_socket(char* address, char* port);
 
 int main(int argc, char* argv[]){
-	struct addrinfo hints, *res;
-	int sockfd_client, err, bufLen;
+	int sockfd_client, bufLen;
 	char sendbuf[MSGBUFSIZE];
 	pthread_t recvthread;
 
+	/* Check input arguments */
 	if(argc != 3){
 		fprintf(stderr, "Usage: %s <ipaddress> <port>\n", argv[0]);
 		return -1;
 	}
 
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
+	/* Connect socket */
+	sockfd_client = setup_client_socket(argv[1], argv[2]);
 
-	if((err = getaddrinfo(argv[1], argv[2], &hints, &res)) != 0){
-		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(err));
- 		exit(EXIT_FAILURE);
-	}
-
-	if((sockfd_client = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0){
-		freeaddrinfo(res);
-		err_sys("socket error");
-	}
-	if(connect(sockfd_client, res->ai_addr, res->ai_addrlen) != 0){
-		freeaddrinfo(res);
-		err_sys("connect error");
-	}
-	freeaddrinfo(res);
-
-
+	/* Print info */
+//	getusersonline();
+	print_welcome();
+//	printusersonline();
 
 	/* New thread for receiving messages */
 	if(pthread_create(&recvthread, NULL, recvfunc, (void*)sockfd_client) != 0)
 		err_sys("pthread_create() error");
 
+
 	/* Send messages */
-	printf("Type messages to other clients. Type \"quit\" to quit.\n");
 	while(1){
+		printf(">>");
 		if((fgets(sendbuf, MSGBUFSIZE, stdin)) == NULL)
 			err_sys("error,fgets = null");
 
-		if(!strncmp(sendbuf, "quit", 4))
+		if(!strncmp(sendbuf, "quit\n", 5))
 			break;
 
 		bufLen = strlen(sendbuf)+1;
@@ -69,26 +59,67 @@ int main(int argc, char* argv[]){
 	if(close(sockfd_client) < 0)
 		err_sys("Socket close error");
 
-	printf("Socket closed successfully\n");
+	printf("Socket closed successfully.\nBye!\n");
 	exit(0);
 }
 
+/* Threads recv functioin */
 void* recvfunc(void *args){
 	int sockfd = (int)args;
 	int nbytes;
 	char recvbuf[MSGBUFSIZE];
 
 	while(1){
-		if((nbytes = recv(sockfd, recvbuf, sizeof(recvbuf), 0)) <= 0)
-			err_sys("recv error, server probably closed on you");
+		if((nbytes = recv(sockfd, recvbuf, sizeof(recvbuf), 0)) <= 0){
+			if(nbytes < 0)
+				err_sys("recv error()");
 
+			err_sys("nothing to receive, server closed on you");
+		}
+		putchar('\n');
 		putchar('\t');
 		fputs(recvbuf, stdout);
+		printf(">>");
 	}
 }
 
+/* Setup socket */
+int setup_client_socket(char* address, char* port){
+	struct addrinfo hints, *res;
+	int err, sockfd_client;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if((err = getaddrinfo(address, port, &hints, &res)) != 0){
+		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(err));
+ 		exit(EXIT_FAILURE);
+	}
+
+	if((sockfd_client = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0){
+		freeaddrinfo(res);
+		err_sys("socket error");
+	}
+	if(connect(sockfd_client, res->ai_addr, res->ai_addrlen) != 0){
+		freeaddrinfo(res);
+		err_sys("connect error");
+	}
+	freeaddrinfo(res);
+	return sockfd_client;
+}
 
 
+/* Welcome info */
+void print_welcome(void){
+	printf("Welcome to the rPi groupchat!\n\n");
+	printf("Here you can send messages to other connected clients.\n");
+	printf("Type \"quit\" to quit.\n");
+	printf("To get a user alias, type \"username:yourusername\". Then people will know who sent the message\n\n");
+
+}
+
+/* Helping error function */
 void err_sys(char* mes){
 	perror(mes);
 	exit(EXIT_FAILURE);

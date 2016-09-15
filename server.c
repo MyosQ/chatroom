@@ -24,8 +24,14 @@ void set_username(int i, char* msgbuf, int nbytes, char** usernamearray);
 int main(int argc, char *argv[]){
 	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen;
 	fd_set read_fds, connected_fds;
-	char msgbuf[MSGBUFSIZE], userandmsg[MSGBUFSIZE], temp[MSGBUFSIZE];
+	char msgbuf[MSGBUFSIZE], userandmsg[MSGBUFSIZE];
 	char** usernamearray;
+
+	/* Check arguments */
+	if(argc != 2){
+		fprintf(stderr,"Usage: %s <port>\n\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
 
 	/* Allocate username array */
 	if((usernamearray = calloc(MAXUSERS, sizeof(char*))) == NULL)
@@ -38,12 +44,6 @@ int main(int argc, char *argv[]){
 	FD_ZERO(&read_fds);
 	FD_ZERO(&connected_fds);
 
-	/* Check arguments */
-	if(argc != 2){
-		fprintf(stderr,"Usage: %s <port>\n\n", argv[0]);
-		exit(EXIT_FAILURE);
-	}
-
 	/* initialize socket */
 	sockfd_listen = socket_initialize(argv[1]);
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 	FD_SET(sockfd_listen, &connected_fds);
 	update_fd_max(sockfd_listen, &fd_max);
 
-	/* Deal with incoming connections */
+	/* Deal with readable sockets */
 	while(1){
 		read_fds = connected_fds;
 		if(select(fd_max+1, &read_fds, NULL, NULL, NULL) < 0)
@@ -81,18 +81,16 @@ int main(int argc, char *argv[]){
 								if(FD_ISSET(j, &connected_fds) && j != i && j != sockfd_listen){
 									/* Build message */
 									memset(userandmsg, 0, sizeof(userandmsg));
-									printf("%d\n", userandmsg[0]);
-									if(usernamearray[i]){
+									if(usernamearray[i][0] != 0){
 										strcpy(userandmsg, usernamearray[i]);
-										printf("%d\n", userandmsg[0]);
 										strcat(userandmsg, ": ");
+										totalLen = strlen(usernamearray[i]) + nbytes + 2;
 									}
 									else{
-										printf("%d\n", userandmsg[0]);
 										strcpy(userandmsg, "Anonymous: ");
+										totalLen = 11 + nbytes + 2;
 									}
 									strcat(userandmsg, msgbuf);
-									totalLen = strlen(usernamearray[i]) + nbytes + 2;
 									if(send(j, userandmsg, totalLen, 0) != totalLen)
 										perror("send() error");
 								}
@@ -117,12 +115,12 @@ void accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max){
 	else{
 		FD_SET(sockfd_client, connected_fds);
 		update_fd_max(sockfd_client, fd_max);
-		printf("New connection on socket %d\n", sockfd_client);
+		print_peer_info(sockfd_client);
 	}
 }
 
 
-/* Create and bind socket */
+/* Create and bind socket (only server)*/
 int socket_initialize(char *port){
 	int sockfd_listen, err;
 	struct addrinfo hints, *result, *p;
@@ -184,12 +182,12 @@ int socket_initialize(char *port){
 }
 
 
-
+/* Print info about peer using its socket */
 int print_peer_info(int sockfd){
 	char host[64], service[64];
 	struct sockaddr addr;
 	socklen_t size = sizeof(addr);
-	printf("New connected client:");
+	printf("New connected client on socket %d:", sockfd);
 
 	if(getpeername(sockfd, &addr, &size) < 0){
 		fprintf(stderr,"couldnt get peer info");
@@ -205,6 +203,7 @@ int print_peer_info(int sockfd){
 	return 0;
 }
 
+/* Not being used on this branch */
 void handleTcpClient(int sockfd){
 	int ret;
 	int sockfd_client = sockfd;
