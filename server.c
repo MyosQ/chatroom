@@ -12,6 +12,21 @@ void send_they_left(int leaver, int listener, fd_set connected_fds, int fd_max, 
 				fprintf(stderr, "Problem sending 'left-chat messages'");
 }
 
+void send_they_joined(int newguy, int listener, fd_set connected_fds, int fd_max, char** usernames){
+	int k;
+	char sendbuf[LEFTCHATBUF], host[64], service[64];
+
+	if(get_peer_info(newguy, host, service) < 0)
+		snprintf(sendbuf, sizeof(sendbuf), "\n New user joined the chat! (Unknown host)\n%c", '\0');
+	else
+		snprintf(sendbuf, sizeof(sendbuf), "\n New user joined the chat! Host: %s Service: %s\n%c", host, service, '\0');
+
+	for(k = 0; k <= fd_max; k++)
+		if(FD_ISSET(k, &connected_fds) && k != newguy && k != listener)
+			if(send(k, sendbuf, LEFTCHATBUF, 0) != LEFTCHATBUF)
+				fprintf(stderr, "Problem sending 'left-chat messages'");
+}
+
 int main(int argc, char *argv[]){
 	int sockfd_listen, fd_max = 0, i, j, nbytes, totalLen, newfd;
 	fd_set read_fds, connected_fds;
@@ -56,6 +71,7 @@ int main(int argc, char *argv[]){
 					/* Deal with new connection */
 					newfd = accept_request(i, &connected_fds, &fd_max);
 					send_users_online(newfd, i, connected_fds, fd_max, usernamearray);
+					send_they_joined(newfd, i , connected_fds, fd_max, usernamearray);
 				}
 				else{
 					/* Deal with message from connected client */
