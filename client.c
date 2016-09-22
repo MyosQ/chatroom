@@ -2,7 +2,8 @@
 
 int main(int argc, char* argv[]){
 	int sockfd, bufLen;
-	char sendbuf[MSGBUFSIZE], users[USERSONLINEBUF];
+	char sendbuf[MSGBUFSIZE], users[USERSONLINEBUF]
+//	char host[64];
 	pthread_t recvthread;
 
 	/* Check input arguments */
@@ -10,6 +11,9 @@ int main(int argc, char* argv[]){
 		fprintf(stderr, "Usage: %s <ipaddress> <port>\n", argv[0]);
 		return -1;
 	}
+
+	/* Get ip if user used hostname */
+//	host = look_in_hostfile(argv[1]);
 
 	/* Connect socket */
 	sockfd = setup_client_socket(argv[1], argv[2]);

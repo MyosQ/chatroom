@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
 		fprintf(stderr,"getaddrinfo: %s\n", gai_strerror(status));
 		return(2);
 	}
-
+	int i = 0;
 	printf("IP addresses for %s\n\n", argv[1]);
 
 	for(p = res; p != NULL; p = p->ai_next){
@@ -46,8 +46,9 @@ int main(int argc, char* argv[]){
 		}
 		inet_ntop(p->ai_family, addr, ipstr, INET6_ADDRSTRLEN);
 		printf("  %s: %s\n", ipver, ipstr);
+		i++;
 	}
-
+	printf("%d\n", i);
 	freeaddrinfo(res);
 	return 0;
 }

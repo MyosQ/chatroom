@@ -25,6 +25,8 @@ void update_fd_max(int fd, int* fd_max);
 int accept_request(int sockfd_listen, fd_set *connected_fds, int *fd_max);
 void set_username(int i, char* msgbuf, int nbytes, char** usernamearray);
 void send_users_online(int newfd, int listener, fd_set connected_fds, int fd_max, char** usernames);
+void send_they_left(int leaver, int listener, fd_set connected_fds, int fd_max, char** usernames);
+void send_they_joined(int newguy, int listener, fd_set connected_fds, int fd_max, char** usernames);
 
 /*cli*/
 void* recvfunc(void *args);
@@ -32,3 +34,4 @@ void print_welcome(char* users);
 int setup_client_socket(char* address, char* port);
 
 void err_sys(char* mes);
+
